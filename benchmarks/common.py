@@ -17,7 +17,7 @@ def setup(train_path, fixed_input_height=0):
 
     syms = str(train_path / "syms")
     syms_table = SymbolsTable()
-    for k, v in data_module.syms.items():
+    for k, v in data_module.syms._val2sym.items():
         syms_table.add(v, k)
     syms_table.save(syms)
 

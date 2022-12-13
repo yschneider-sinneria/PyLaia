@@ -2,8 +2,11 @@
 from typing import Any, Dict, List, Optional
 
 import jsonargparse
+import mlflow
 import pytorch_lightning as pl
 import torch
+from mlflow import MlflowClient
+from pytorch_lightning.loggers.mlflow import MLFlowLogger
 
 import laia.common.logging as log
 from laia.callbacks import LearningRate, ProgressBar, ProgressBarGPUStats
@@ -20,6 +23,16 @@ from laia.engine import Compose, DataModule, HTREngineModule, ImageFeeder, ItemF
 from laia.loggers import EpochCSVLogger
 from laia.scripts.htr import common_main
 from laia.utils import SymbolsTable
+
+
+def print_auto_logged_info(r):
+    tags = {k: v for k, v in r.data.tags.items() if not k.startswith("mlflow.")}
+    artifacts = [f.path for f in MlflowClient().list_artifacts(r.info.run_id, "model")]
+    print("run_id: {}".format(r.info.run_id))
+    print("artifacts: {}".format(artifacts))
+    print("params: {}".format(r.data.params))
+    print("metrics: {}".format(r.data.metrics))
+    print("tags: {}".format(tags))
 
 
 def run(
@@ -116,18 +129,35 @@ def run(
     if scheduler.active:
         callbacks.append(LearningRate(logging_interval="epoch"))
 
+    # Loggers
+    loggers = [EpochCSVLogger(common.experiment_dirpath)]
+
+    # loggers.append(MLFlowLogger(
+    #     experiment_name="Test Pylaia Integration",
+    #     tracking_uri="https://mlflow.vpn"
+    # ))
     # prepare the trainer
     trainer = pl.Trainer(
         default_root_dir=common.train_path,
         resume_from_checkpoint=checkpoint,
         callbacks=callbacks,
-        logger=EpochCSVLogger(common.experiment_dirpath),
+        logger=loggers,
         checkpoint_callback=True,
         **vars(trainer),
     )
 
     # train!
-    trainer.fit(engine_module, datamodule=data_module)
+    # trainer.fit(engine_module, datamodule=data_module)
+    mlflow.set_experiment(experiment_id="3")
+    # Auto log all MLflow entities
+    mlflow.pytorch.autolog()
+
+    # Train the model
+    with mlflow.start_run() as run:
+        trainer.fit(engine_module, datamodule=data_module)
+
+    # fetch the auto logged parameters and metrics
+    print_auto_logged_info(mlflow.get_run(run_id=run.info.run_id))
 
     # training is over
     if early_stopping_callback.stopped_epoch:

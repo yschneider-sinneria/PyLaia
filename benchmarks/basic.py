@@ -19,14 +19,14 @@ train_path.mkdir(exist_ok=True)
 
 seed, data_module, syms = setup(train_path)
 
-epochs = 40
-batch_size = 320
+epochs = 2
+batch_size = 1
 # note: batch size 128 is able to achieve similar performance with only 15 epochs,
 # however, since we are more interested in maximizing the available memory, we use
 # this larger batch size.
 # 1e-3 was the best learning rate with batch size 128
-k = batch_size / 128
-learning_rate = 1e-3 * sqrt(k)
+# k = batch_size / 128
+learning_rate = 1e-4  # * sqrt(k)
 
 train(
     syms,
@@ -44,12 +44,12 @@ train(
         checkpoint_k=0,
         # disable early stopping
         early_stopping_patience=epochs,
-        gpu_stats=True,
+        gpu_stats=False,
     ),
     trainer=TrainerArgs(
         max_epochs=epochs,
         weights_summary=None,
-        gpus=1,
+        gpus=0,
         # training is still not deterministic on GPU
         deterministic=True,
     ),
